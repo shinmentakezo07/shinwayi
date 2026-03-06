@@ -2,10 +2,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY shin/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY shin/ ./shin/
+COPY . ./shin/
 COPY sysprompt.txt /app/sysprompt.txt
 
 ENV HOST=0.0.0.0
