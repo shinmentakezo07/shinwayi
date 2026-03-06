@@ -1,0 +1,92 @@
+services:
+  shin-proxy:
+    build:
+      context: ..
+      dockerfile: shin/Dockerfile
+    env_file: ./.env
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "4000"
+      LITELLM_MASTER_KEY: "${LITELLM_MASTER_KEY:-sk-local-dev}"
+      CURSOR_BASE_URL: "${CURSOR_BASE_URL:-https://cursor.com}"
+      CURSOR_MODEL: "${CURSOR_MODEL:-anthropic/claude-sonnet-4.6}"
+      CURSOR_COOKIE: "${CURSOR_COOKIE:-}"
+      CURSOR_COOKIES: "${CURSOR_COOKIES:-}"
+      CURSOR_AUTH_HEADER: "${CURSOR_AUTH_HEADER:-}"
+      GATEWAY_UPSTREAM_READ_TIMEOUT_SECONDS: "${GATEWAY_UPSTREAM_READ_TIMEOUT_SECONDS:-300}"
+      GATEWAY_RETRY_ATTEMPTS: "${GATEWAY_RETRY_ATTEMPTS:-2}"
+      GATEWAY_RETRY_BACKOFF_SECONDS: "${GATEWAY_RETRY_BACKOFF_SECONDS:-0.6}"
+      GATEWAY_ADAPTIVE_CONCURRENCY_ENABLED: "${GATEWAY_ADAPTIVE_CONCURRENCY_ENABLED:-true}"
+      GATEWAY_ADAPTIVE_CONCURRENCY_INITIAL: "${GATEWAY_ADAPTIVE_CONCURRENCY_INITIAL:-21}"
+      GATEWAY_ADAPTIVE_CONCURRENCY_MIN: "${GATEWAY_ADAPTIVE_CONCURRENCY_MIN:-21}"
+      GATEWAY_ADAPTIVE_CONCURRENCY_MAX: "${GATEWAY_ADAPTIVE_CONCURRENCY_MAX:-21}"
+      GATEWAY_ADAPTIVE_CONCURRENCY_SUCCESS_WINDOW: "${GATEWAY_ADAPTIVE_CONCURRENCY_SUCCESS_WINDOW:-8}"
+      GATEWAY_ADAPTIVE_CONCURRENCY_RATE_LIMIT_COOLDOWN_SECONDS: "${GATEWAY_ADAPTIVE_CONCURRENCY_RATE_LIMIT_COOLDOWN_SECONDS:-6}"
+      GATEWAY_CACHE_ENABLED: "${GATEWAY_CACHE_ENABLED:-true}"
+      GATEWAY_CACHE_TTL_SECONDS: "${GATEWAY_CACHE_TTL_SECONDS:-45}"
+      GATEWAY_CACHE_MAX_ENTRIES: "${GATEWAY_CACHE_MAX_ENTRIES:-500}"
+      GATEWAY_CACHE_BACKEND: "${GATEWAY_CACHE_BACKEND:-redis}"
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
+      REDIS_CACHE_PREFIX: "${REDIS_CACHE_PREFIX:-shin:cache:}"
+      GATEWAY_METRICS_ENABLED: "${GATEWAY_METRICS_ENABLED:-true}"
+      GATEWAY_OTEL_ENABLED: "${GATEWAY_OTEL_ENABLED:-false}"
+      OTEL_SERVICE_NAME: "${OTEL_SERVICE_NAME:-shin-proxy}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318/v1/traces}"
+      GATEWAY_PRICE_ANTHROPIC_PER_1K: "${GATEWAY_PRICE_ANTHROPIC_PER_1K:-0.015}"
+      GATEWAY_PRICE_OPENAI_PER_1K: "${GATEWAY_PRICE_OPENAI_PER_1K:-0.01}"
+      GATEWAY_SYSTEM_PROMPT_FILE: "${GATEWAY_SYSTEM_PROMPT_FILE:-/app/sysprompt.txt}"
+    depends_on:
+      redis:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+    ports:
+      - "${SHIN_PORT:-4000}:4000"
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - shin_redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.109.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./monitoring/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "${OTEL_HTTP_PORT:-4318}:4318"
+      - "${OTEL_GRPC_PORT:-4317}:4317"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-19090}:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.2.2
+    environment:
+      GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER:-admin}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-admin}"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT:-13000}:3000"
+    depends_on:
+      prometheus:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  shin_redis_data:
+  prometheus_data:
+  grafana_data:

@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+httpx
+structlog
+pydantic
+pydantic-settings
+cachetools
+python-dotenv
+redis
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-http
+opentelemetry-instrumentation-fastapi
+opentelemetry-instrumentation-httpx
+tiktoken
